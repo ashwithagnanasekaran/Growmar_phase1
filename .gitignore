@@ -1,0 +1,26 @@
+﻿# Python environment and cache
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Raw datasets
+data/raw/
+
+# Generated model and feature artifacts
+models_store/
+artifacts/
+
+# Local editor and operating system files
+.vscode/
+.DS_Store
+Thumbs.db

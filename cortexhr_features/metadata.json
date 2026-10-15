@@ -1,0 +1,7 @@
+{
+  "version": "features-1.0.0",
+  "description": "Reusable feature pipeline for the CortexHR dataset",
+  "feature_engineering_module": "src.features.engineering",
+  "pipeline_module": "src.features.pipeline",
+  "artifact_path": "artifacts\\features\\features-1.0.0.joblib"
+}
