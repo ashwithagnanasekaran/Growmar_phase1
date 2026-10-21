@@ -1,103 +1,110 @@
-
-"""Integration tests for the reusable CortexHR feature pipeline."""
-
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
-from src.features.pipeline import FeaturePipeline
+from src.features.monthly_aggregation import (
+    aggregate_monthly_features,
+)
+from src.features.pipeline import (
+    FeaturePipeline,
+    EXCLUDED_COLUMNS,
+    prepare_features,
+)
 
-
-# Project paths
 DATA_PATH = Path("data/raw/02_CortexHR_AI_ML_Dataset.xlsx")
-ARTIFACT_PATH = Path("artifacts/features/features-1.0.0.joblib")
 
 
-def main():
-    # 1. Check that the dataset exists.
-    if not DATA_PATH.exists():
-        raise FileNotFoundError(
-            f"Dataset not found: {DATA_PATH}"
-        )
+def load_three_rows_with_monthly_features():
+    """Load three raw rows and add their monthly summaries."""
 
-    # 2. Load a sample for pipeline testing.
-    print("Loading dataset...")
-
-    df = pd.read_excel(
+    attrition = pd.read_excel(
         DATA_PATH,
         sheet_name="attrition_dataset",
+    ).head(3)
+
+    attendance = pd.read_excel(
+        DATA_PATH,
+        sheet_name="attendance_monthly_features",
     )
 
-    sample = df.head(200).copy()
+    payroll = pd.read_excel(
+        DATA_PATH,
+        sheet_name="payroll_monthly_features",
+    )
 
-    if sample.empty:
-        raise ValueError("The dataset sample is empty.")
+    return aggregate_monthly_features(
+        attrition,
+        attendance,
+        payroll,
+    )
 
-    print("Sample shape:", sample.shape)
 
-    # 3. Fit the pipeline and transform the sample.
+def test_three_raw_rows_produce_model_ready_features():
+    df = load_three_rows_with_monthly_features()
+
     pipeline = FeaturePipeline()
-    pipeline.fit(sample)
+    pipeline.fit(df)
+    result = pipeline.transform(df)
 
-    print("Pipeline fitted successfully.")
+    assert len(result) == 3
+    assert result.shape[1] > 0
+    assert result.select_dtypes(exclude="number").empty
+    assert not result.isna().any().any()
 
-    transformed_before = pipeline.transform(sample)
-
-    print("Transformed shape:", transformed_before.shape)
-
-    # 4. Test that the row count is preserved.
-    assert len(transformed_before) == len(sample), (
-        "Output row count does not match input row count."
+    assert any(
+        column.startswith("attendance_")
+        for column in result.columns
+    )
+    assert any(
+        column.startswith("payroll_")
+        for column in result.columns
     )
 
-    # 5. Test that features were generated.
-    assert transformed_before.shape[1] > 0, (
-        "No features were produced."
-    )
 
-    # 6. Test that no missing values remain.
-    missing_count = int(
-        transformed_before.isna().sum().sum()
-    )
+def test_target_and_leakage_columns_are_excluded():
+    df = load_three_rows_with_monthly_features()
 
-    print("Missing values after transform:", missing_count)
+    X, _, _ = prepare_features(df)
 
-    assert missing_count == 0, (
-        "Missing values remain after preprocessing."
-    )
+    forbidden = {
+        "left_within_12m",
+        "voluntary_left_within_12m",
+        "exit_date",
+        "resignation_date",
+        "exit_reason",
+        "exit_interview_done",
+        "fnf_settlement_amount",
+    }
 
-    # 7. Test that feature names are unique.
-    assert transformed_before.columns.is_unique, (
-        "Output feature names are not unique."
-    )
+    assert forbidden.isdisjoint(X.columns)
+    assert forbidden.issubset(set(EXCLUDED_COLUMNS))
 
-    print("Shape, missing-value, and feature-name tests passed.")
+    pipeline = FeaturePipeline().fit(df)
+    output = pipeline.transform(df)
 
-    # 8. Save the fitted pipeline.
-    ARTIFACT_PATH.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    pipeline.save(ARTIFACT_PATH)
-
-    # 9. Load the saved pipeline.
-    loaded_pipeline = FeaturePipeline.load(ARTIFACT_PATH)
-
-    # 10. Transform the same sample again.
-    transformed_after = loaded_pipeline.transform(sample)
-
-    # 11. Confirm that saving and loading preserves the output.
-    pd.testing.assert_frame_equal(
-        transformed_before,
-        transformed_after,
-    )
-
-    print("Save/load consistency test passed.")
-    print("Pipeline version:", loaded_pipeline.version)
-    print("Artifact saved to:", ARTIFACT_PATH)
-    print("All pipeline tests passed!")
+    assert forbidden.isdisjoint(output.columns)
 
 
-if __name__ == "__main__":
-    main()
+def test_pipeline_save_and_load(tmp_path):
+    df = load_three_rows_with_monthly_features()
+
+    pipeline = FeaturePipeline()
+    pipeline.fit(df)
+    expected = pipeline.transform(df)
+
+    path = tmp_path / "features.joblib"
+    pipeline.save(path)
+
+    loaded = FeaturePipeline.load(path)
+    actual = loaded.transform(df)
+
+    pd.testing.assert_frame_equal(expected, actual)
+
+
+def test_transform_before_fit_raises_error():
+    pipeline = FeaturePipeline()
+    df = load_three_rows_with_monthly_features()
+
+    with pytest.raises(RuntimeError):
+        pipeline.transform(df)

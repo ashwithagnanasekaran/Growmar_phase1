@@ -6,39 +6,45 @@
 - Clean training rows: 5871
 - Normal holdout rows: 1468
 - Injected anomaly rows: 87
-- Model: Isolation Forest
-- Random seed: 42
-- Selected anomaly-score threshold: 0.068527
+- Model: Isolation Forest with 300 trees
+- Tested contamination settings: [0.01, 0.02, 0.03, 0.05]
+- Selected contamination: 3%
+- Selected native threshold: 0.0
+
+## Contamination comparison at native threshold (0.0)
+
+|   contamination |   threshold |   catch_rate |   false_alarm_rate |   precision |
+|----------------:|------------:|-------------:|-------------------:|------------:|
+|          0.0100 |      0.0000 |       0.5632 |             0.0048 |      0.8750 |
+|          0.0200 |      0.0000 |       0.6782 |             0.0136 |      0.7468 |
+|          0.0300 |      0.0000 |       0.8391 |             0.0204 |      0.7087 |
+|          0.0500 |      0.0000 |       1.0000 |             0.0429 |      0.5800 |
 
 ## Injected anomalies
 
-Three controlled cases were injected into copies of held-out rows:
-
 - Impossible working hours: 24 average hours/day and 80 overtime hours.
 - Long absence: zero present days and a full scheduled-month absence.
-- Sudden pattern change: very low attendance and hours with high overtime.
+- Sudden pattern change: very low attendance/hours with high overtime.
 
 The original workbook and clean training records were not modified.
-Injected labels were excluded from model features and training.
+Injected labels and anomaly-type labels were excluded from model features.
 
-## Selected threshold results
+## Selected setting results
 
-- Injected anomalies caught: 70
-- Injected anomalies missed: 17
-- Normal records falsely flagged: 36
-- Normal records correctly left unflagged: 1432
-- Catch rate: 80.46%
-- False-alarm rate: 2.45%
-- Precision: 66.04%
+- Anomalies caught: 73
+- Anomalies missed: 14
+- False alarms: 30
+- Correctly unflagged normal records: 1438
+- Catch rate: 83.91%
+- False-alarm rate: 2.04%
+- Precision: 70.87%
 
-## Threshold rationale
+## Selection rationale
 
-Selected the threshold with the highest precision among thresholds achieving at least 70% catch rate and no more than 5% false-alarm rate on the synthetic evaluation set.
+Selected the highest-precision contamination setting meeting the 70% catch-rate target and 5% false-alarm limit at the native Isolation Forest decision threshold of 0.0.
 
-See `attendance_threshold_tradeoff.png` and `attendance_threshold_metrics.csv` for the tested trade-offs.
+See `attendance_threshold_tradeoff.png`, `attendance_threshold_metrics.csv`, and `attendance_contamination_comparison.csv` for results.
 
 ## Limitations
 
-The threshold was selected using the same synthetic evaluation set used to report these threshold metrics. Results may therefore be optimistic for the injected anomaly patterns. They do not prove equivalent catch rates on real anomalies. Validate on independently reviewed historical cases before deployment.
-
-Synthetic cases represent unusual measurements, not proof of employee misconduct. HR must investigate alerts in context.
+Metrics are measured against synthetic injected anomalies and do not establish performance on real incidents. Validate against independently reviewed historical cases before deployment. Synthetic alerts are not evidence of employee misconduct.

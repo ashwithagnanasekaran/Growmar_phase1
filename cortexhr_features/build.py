@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.features.pipeline import FeaturePipeline
+from src.features.monthly_aggregation import aggregate_monthly_features
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = ROOT / "data" / "raw" / "02_CortexHR_AI_ML_Dataset.xlsx"
@@ -16,7 +17,19 @@ METADATA_PATH = Path(__file__).resolve().parent / "metadata.json"
 def main():
     print("Loading CortexHR dataset...")
 
-    df = pd.read_excel(DATA_PATH, sheet_name="attrition_dataset")
+    df = pd.read_excel(
+        DATA_PATH, sheet_name="attrition_dataset"
+    )
+    attendance_df = pd.read_excel(
+        DATA_PATH, sheet_name="attendance_monthly_features"
+    )
+    payroll_df = pd.read_excel(
+        DATA_PATH, sheet_name="payroll_monthly_features"
+    )
+    df = aggregate_monthly_features(
+        df, attendance_df, payroll_df
+    )
+    print(f"Rows after monthly aggregation: {len(df)}")
 
     # Fit only on the training portion to avoid data leakage.
     from sklearn.model_selection import train_test_split

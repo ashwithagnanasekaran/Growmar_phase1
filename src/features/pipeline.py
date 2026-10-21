@@ -1,14 +1,19 @@
+
 """Reusable preprocessing pipeline for CortexHR."""
 
+from pathlib import Path
+
+import joblib
 import pandas as pd
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
 from src.features.engineering import engineer_features
-from pathlib import Path
-import joblib
+
+
 # Columns that must never be used as model inputs.
 TARGET_COLUMNS = [
     "left_within_12m",
@@ -35,6 +40,7 @@ EXCLUDED_COLUMNS = (
     + LEAKAGE_COLUMNS
     + IDENTIFIER_COLUMNS
 )
+
 FEATURE_VERSION = "features-1.0.0"
 
 
@@ -42,18 +48,30 @@ def build_preprocessing_pipeline(
     numeric_features: list[str],
     categorical_features: list[str],
 ) -> ColumnTransformer:
-    """Build preprocessing steps for numeric and categorical columns."""
+    """Build numeric and categorical preprocessing steps."""
 
     numeric_pipeline = Pipeline(
         steps=[
-            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="median",
+                    keep_empty_features=True,
+                ),
+            ),
             ("scaler", StandardScaler()),
         ]
     )
 
     categorical_pipeline = Pipeline(
         steps=[
-            ("imputer", SimpleImputer(strategy="most_frequent")),
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="most_frequent",
+                    keep_empty_features=True,
+                ),
+            ),
             (
                 "encoder",
                 OneHotEncoder(
@@ -67,18 +85,41 @@ def build_preprocessing_pipeline(
     return ColumnTransformer(
         transformers=[
             ("numeric", numeric_pipeline, numeric_features),
-            ("categorical", categorical_pipeline, categorical_features),
+            (
+                "categorical",
+                categorical_pipeline,
+                categorical_features,
+            ),
         ],
         remainder="drop",
         verbose_feature_names_out=False,
     )
-def prepare_features(df: pd.DataFrame):
-    """Engineer features and identify safe model input columns."""
 
-    # Create a copy with engineered features.
+
+def build_pipeline(
+    numeric_features: list[str],
+    categorical_features: list[str],
+) -> Pipeline:
+    """Build the complete reusable preprocessing pipeline."""
+
+    return Pipeline(
+        steps=[
+            (
+                "preprocessor",
+                build_preprocessing_pipeline(
+                    numeric_features,
+                    categorical_features,
+                ),
+            )
+        ]
+    )
+
+
+def prepare_features(df: pd.DataFrame):
+    """Engineer features and select safe model inputs."""
+
     featured_df = engineer_features(df)
 
-    # Keep only columns that are safe model inputs.
     feature_columns = [
         column
         for column in featured_df.columns
@@ -87,18 +128,19 @@ def prepare_features(df: pd.DataFrame):
 
     X = featured_df[feature_columns].copy()
 
-    # Identify numeric and categorical columns.
     numeric_features = X.select_dtypes(
         include=["number"]
     ).columns.tolist()
 
     categorical_features = X.select_dtypes(
-        include=["object", "category", "bool"]
+        include=["object", "category", "bool", "str"]
     ).columns.tolist()
 
-    return X, numeric_features, categorical_features 
+    return X, numeric_features, categorical_features
+
+
 class FeaturePipeline:
-    """Fit, save, load, and reuse the feature preprocessing pipeline."""
+    """Fit, transform, save, and load preprocessing rules."""
 
     def __init__(self):
         self.preprocessor = None
@@ -108,15 +150,17 @@ class FeaturePipeline:
         self.version = FEATURE_VERSION
 
     def fit(self, df: pd.DataFrame):
-        """Learn preprocessing rules from the supplied training data."""
+        """Learn preprocessing rules from training data only."""
 
-        X, numeric_features, categorical_features = prepare_features(df)
+        X, numeric_features, categorical_features = prepare_features(
+            df
+        )
 
         self.feature_columns = X.columns.tolist()
         self.numeric_features = numeric_features
         self.categorical_features = categorical_features
 
-        self.preprocessor = build_preprocessing_pipeline(
+        self.preprocessor = build_pipeline(
             numeric_features,
             categorical_features,
         )
@@ -125,11 +169,13 @@ class FeaturePipeline:
 
         return self
 
-    def transform(self, df: pd.DataFrame):
-        """Apply the previously learned rules to new data."""
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Transform data using previously learned rules."""
 
         if self.preprocessor is None:
-            raise RuntimeError("Fit the feature pipeline before transforming data.")
+            raise RuntimeError(
+                "Fit the feature pipeline before transforming data."
+            )
 
         X, _, _ = prepare_features(df)
 
@@ -146,10 +192,12 @@ class FeaturePipeline:
         )
 
     def save(self, path: str | Path):
-        """Save the fitted pipeline and its version."""
+        """Save the fitted feature pipeline."""
 
         if self.preprocessor is None:
-            raise RuntimeError("Fit the feature pipeline before saving it.")
+            raise RuntimeError(
+                "Fit the feature pipeline before saving it."
+            )
 
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,6 +211,8 @@ class FeaturePipeline:
         pipeline = joblib.load(path)
 
         if not isinstance(pipeline, cls):
-            raise TypeError("The saved file is not a FeaturePipeline.")
+            raise TypeError(
+                "The saved file is not a FeaturePipeline."
+            )
 
         return pipeline

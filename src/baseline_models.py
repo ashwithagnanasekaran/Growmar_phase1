@@ -17,39 +17,50 @@ from sklearn.metrics import (
     confusion_matrix,
     ConfusionMatrixDisplay,
     f1_score,
-    make_scorer,
     precision_score,
     recall_score,
     roc_auc_score,
     roc_curve,
 )
-from sklearn.model_selection import (
-    train_test_split,
-    StratifiedKFold,
-    cross_validate,
-    cross_val_predict,
-)
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.tree import DecisionTreeClassifier
 
 from src.features.pipeline import FeaturePipeline
+from src.features.monthly_aggregation import aggregate_monthly_features
 
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = ROOT / "data" / "raw" / "02_CortexHR_AI_ML_Dataset.xlsx"
 MODEL_DIR = ROOT / "models_store" / "attrition_baseline" / "1.0.0"
 REPORT_DIR = ROOT / "reports"
+
 TARGET = "left_within_12m"
 RANDOM_STATE = 42
 RECALL_TARGET = 0.60
 
 
 def main():
-    # 1. Load dataset and create a stratified train/test split.
+    # 1. Load the dataset and split into training and test sets.
     print("Loading dataset...")
+
     df = pd.read_excel(
         DATA_PATH,
         sheet_name="attrition_dataset",
     )
+
+    attendance_df = pd.read_excel(
+        DATA_PATH,
+        sheet_name="attendance_monthly_features",
+    )
+    payroll_df = pd.read_excel(
+        DATA_PATH,
+        sheet_name="payroll_monthly_features",
+    )
+
+    df = aggregate_monthly_features(
+        df, attendance_df, payroll_df
+    )
+    print(f"Rows after monthly aggregation: {len(df)}")
 
     y = df[TARGET].astype(int)
 
@@ -63,15 +74,15 @@ def main():
     y_train = train_df[TARGET].astype(int)
     y_test = test_df[TARGET].astype(int)
 
-    # 2. Fit feature preprocessing on training data only.
     print("Preparing features...")
-    feature_pipeline = FeaturePipeline()
-    feature_pipeline.fit(train_df)
 
-    X_train = feature_pipeline.transform(train_df)
-    X_test = feature_pipeline.transform(test_df)
+    X_train = train_df.drop(columns=[TARGET]).copy()
+    X_test = test_df.drop(columns=[TARGET]).copy()
 
-    # 3. Define the three baseline models.
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 2. Define the three required baseline models.
     models = {
         "Dummy (always stays)": DummyClassifier(
             strategy="most_frequent"
@@ -88,69 +99,123 @@ def main():
         ),
     }
 
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    REPORT_DIR.mkdir(parents=True, exist_ok=True)
-
-    # 4. Compare models using stratified five-fold cross-validation.
+    # 3. Configure stratified five-fold cross-validation.
     cv = StratifiedKFold(
         n_splits=5,
         shuffle=True,
         random_state=RANDOM_STATE,
     )
 
-    scoring = {
-        "roc_auc": "roc_auc",
-        "pr_auc": "average_precision",
-        "precision": make_scorer(
-            precision_score,
-            zero_division=0,
-        ),
-        "recall": make_scorer(
-            recall_score,
-            zero_division=0,
-        ),
-        "f1": make_scorer(
-            f1_score,
-            zero_division=0,
-        ),
-    }
-
     results = []
     fitted_models = {}
 
     print("Running five-fold cross-validation...")
 
+    # 4. Evaluate each model. Fit preprocessing separately in each fold.
     for name, model in models.items():
-        scores = cross_validate(
-            clone(model),
-            X_train,
-            y_train,
-            cv=cv,
-            scoring=scoring,
-            n_jobs=-1,
-            error_score="raise",
-        )
+        fold_scores = {
+            "roc_auc": [],
+            "pr_auc": [],
+            "precision": [],
+            "recall": [],
+            "f1": [],
+        }
 
+        for train_idx, val_idx in cv.split(X_train, y_train):
+            fold_train = X_train.iloc[train_idx]
+            fold_val = X_train.iloc[val_idx]
+
+            y_fold_train = y_train.iloc[train_idx]
+            y_fold_val = y_train.iloc[val_idx]
+
+            # Fit feature preprocessing only on this fold's training data.
+            fold_pipeline = FeaturePipeline()
+            fold_pipeline.fit(fold_train)
+
+            X_fold_train = fold_pipeline.transform(fold_train)
+            X_fold_val = fold_pipeline.transform(fold_val)
+
+            fold_classifier = clone(model)
+            fold_classifier.fit(X_fold_train, y_fold_train)
+
+            predictions = fold_classifier.predict(X_fold_val)
+
+            fold_scores["precision"].append(
+                precision_score(
+                    y_fold_val,
+                    predictions,
+                    zero_division=0,
+                )
+            )
+
+            fold_scores["recall"].append(
+                recall_score(
+                    y_fold_val,
+                    predictions,
+                    zero_division=0,
+                )
+            )
+
+            fold_scores["f1"].append(
+                f1_score(
+                    y_fold_val,
+                    predictions,
+                    zero_division=0,
+                )
+            )
+
+            # Probability-based metrics require both classes in validation.
+            if hasattr(fold_classifier, "predict_proba"):
+                probabilities = fold_classifier.predict_proba(
+                    X_fold_val
+                )[:, 1]
+
+                if y_fold_val.nunique() == 2:
+                    fold_scores["roc_auc"].append(
+                        roc_auc_score(y_fold_val, probabilities)
+                    )
+                else:
+                    fold_scores["roc_auc"].append(float("nan"))
+
+                fold_scores["pr_auc"].append(
+                    average_precision_score(
+                        y_fold_val,
+                        probabilities,
+                    )
+                )
+
+        # Calculate mean and standard deviation for every metric.
         row = {"model": name}
 
-        for metric in scoring:
-            values = scores[f"test_{metric}"]
-            row[f"{metric}_mean"] = values.mean()
-            row[f"{metric}_std"] = values.std()
+        for metric, values in fold_scores.items():
+            row[f"{metric}_mean"] = pd.Series(values).mean()
+            row[f"{metric}_std"] = pd.Series(values).std(ddof=0)
 
         results.append(row)
 
-        # Fit each model on the complete training set.
-        model.fit(X_train, y_train)
-        fitted_models[name] = model
+        # Fit the final feature pipeline on the complete training split.
+        final_pipeline = FeaturePipeline()
+        final_pipeline.fit(X_train)
 
+        X_train_processed = final_pipeline.transform(X_train)
+
+        final_classifier = clone(model)
+        final_classifier.fit(X_train_processed, y_train)
+
+        fitted_models[name] = {
+            "feature_pipeline": final_pipeline,
+            "classifier": final_classifier,
+        }
+
+    # 5. Save cross-validation metrics.
     results_df = pd.DataFrame(results)
+
     results_df.to_csv(
         REPORT_DIR / "baseline_metrics.csv",
         index=False,
     )
 
-    # 5. Select the supervised model with the highest CV PR-AUC.
+    # 6. Select the supervised model with the highest mean PR-AUC.
     supervised = results_df[
         results_df["model"].isin(
             [
@@ -167,19 +232,33 @@ def main():
 
     best_model = fitted_models[best_name]
 
-    # 6. Choose the decision threshold using out-of-fold training
-    # probabilities rather than predictions on data used to fit
-    # the same model.
+    # 7. Generate out-of-fold probabilities for threshold selection.
     print("Selecting threshold from out-of-fold predictions...")
 
-    oof_probabilities = cross_val_predict(
-        clone(best_model),
-        X_train,
-        y_train,
-        cv=cv,
-        method="predict_proba",
-        n_jobs=-1,
-    )[:, 1]
+    oof_probabilities = pd.Series(
+        index=X_train.index,
+        dtype=float,
+    )
+
+    for train_idx, val_idx in cv.split(X_train, y_train):
+        fold_train = X_train.iloc[train_idx]
+        fold_val = X_train.iloc[val_idx]
+        y_fold_train = y_train.iloc[train_idx]
+
+        fold_pipeline = FeaturePipeline()
+        fold_pipeline.fit(fold_train)
+
+        X_fold_train = fold_pipeline.transform(fold_train)
+        X_fold_val = fold_pipeline.transform(fold_val)
+
+        fold_classifier = clone(models[best_name])
+        fold_classifier.fit(X_fold_train, y_fold_train)
+
+        oof_probabilities.iloc[val_idx] = (
+            fold_classifier.predict_proba(X_fold_val)[:, 1]
+        )
+
+    oof_probabilities = oof_probabilities.to_numpy()
 
     eligible_thresholds = []
 
@@ -193,6 +272,7 @@ def main():
             predictions,
             zero_division=0,
         )
+
         precision = precision_score(
             y_train,
             predictions,
@@ -210,16 +290,23 @@ def main():
             "Check the training labels and model probabilities."
         )
 
-    # Maximize precision while satisfying the recall requirement.
+    # Maximize precision while maintaining at least 60% recall.
     selected_precision, selected_recall, selected_threshold = max(
         eligible_thresholds,
         key=lambda item: (item[0], item[2]),
     )
 
-    # 7. Evaluate the selected model exactly once on the held-out test set.
+    # 8. Evaluate the selected model on the held-out test set.
     print("Evaluating on the held-out test set...")
 
-    test_probabilities = best_model.predict_proba(X_test)[:, 1]
+    test_pipeline = best_model["feature_pipeline"]
+    test_classifier = best_model["classifier"]
+
+    X_test_processed = test_pipeline.transform(X_test)
+
+    test_probabilities = test_classifier.predict_proba(
+        X_test_processed
+    )[:, 1]
 
     test_predictions = (
         test_probabilities >= selected_threshold
@@ -229,27 +316,31 @@ def main():
         y_test,
         test_probabilities,
     )
+
     test_pr_auc = average_precision_score(
         y_test,
         test_probabilities,
     )
+
     test_precision = precision_score(
         y_test,
         test_predictions,
         zero_division=0,
     )
+
     test_recall = recall_score(
         y_test,
         test_predictions,
         zero_division=0,
     )
+
     test_f1 = f1_score(
         y_test,
         test_predictions,
         zero_division=0,
     )
 
-    # 8. Save the confusion matrix.
+    # 9. Save the confusion matrix.
     matrix = confusion_matrix(
         y_test,
         test_predictions,
@@ -263,38 +354,44 @@ def main():
 
     plt.title(f"Confusion Matrix - {best_name}")
     plt.tight_layout()
+
     plt.savefig(
         REPORT_DIR / "baseline_confusion_matrix.png",
         dpi=150,
     )
+
     plt.close()
 
-    # 9. Save the ROC curve.
+    # 10. Save the ROC curve.
     fpr, tpr, _ = roc_curve(
         y_test,
         test_probabilities,
     )
 
     plt.figure()
+
     plt.plot(
         fpr,
         tpr,
         label=f"ROC-AUC = {test_roc_auc:.3f}",
     )
+
     plt.plot([0, 1], [0, 1], linestyle="--")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate (Recall)")
     plt.title(f"ROC Curve - {best_name}")
     plt.legend()
     plt.tight_layout()
+
     plt.savefig(
         REPORT_DIR / "baseline_roc_curve.png",
         dpi=150,
     )
+
     plt.close()
 
-    # 10. Save all fitted models for reproducibility.
-    for name, model in fitted_models.items():
+    # 11. Save fitted preprocessing pipelines and models.
+    for name, model_bundle in fitted_models.items():
         safe_name = re.sub(
             r"[^a-z0-9]+",
             "_",
@@ -302,7 +399,7 @@ def main():
         ).strip("_")
 
         joblib.dump(
-            model,
+            model_bundle,
             MODEL_DIR / f"{safe_name}.joblib",
         )
 
@@ -331,7 +428,7 @@ def main():
         encoding="utf-8",
     )
 
-    # 11. Generate the baseline report for the HR team.
+    # 12. Generate the baseline report.
     report = [
         "# Task 3 - Attrition Baseline Report",
         "",
@@ -340,6 +437,7 @@ def main():
         f"- Held-out test rows: {len(test_df)}",
         f"- Target: `{TARGET}`",
         "- Cross-validation: stratified five-fold CV on training data",
+        "- Preprocessing is fitted independently within each CV fold.",
         "",
         "## Cross-validation results",
         "",
@@ -378,24 +476,22 @@ def main():
         "## HR interpretation",
         "",
         "The model estimates which employees may leave within 12 months. "
-        "The decision threshold was selected using out-of-fold training "
-        "predictions to target at least 60% recall. Higher recall may "
-        "help HR identify more employees who could leave, but can also "
-        "flag employees who stay.",
+        "The threshold was selected using out-of-fold training predictions "
+        "to target at least 60% recall. Higher recall may identify more "
+        "employees who leave, but may also flag employees who stay.",
         "",
-        "These predictions indicate patterns, not certainty about an "
-        "individual's intentions. HR should review results fairly, "
-        "protect employee privacy, and never use model predictions as "
-        "the sole basis for employment decisions.",
+        "Predictions indicate patterns, not certainty about individual "
+        "intentions. HR should review results fairly, protect employee "
+        "privacy, and never use predictions as the sole basis for "
+        "employment decisions.",
         "",
         "## Limitations",
         "",
         "This is a baseline model, not a validated production system. "
-        "Preprocessing was fitted on the training split before model "
-        "cross-validation, so cross-validation scores may be optimistic. "
-        "A stricter evaluation should fit preprocessing separately "
-        "within each cross-validation fold. Performance and fairness "
-        "should be checked on future data before operational use.",
+        "Cross-validation scores summarize performance on training folds. "
+        "The final test set is held out for evaluation. Future data, "
+        "fairness, and operational performance should be assessed before "
+        "using the model in real HR decisions.",
         "",
     ]
 
@@ -404,7 +500,7 @@ def main():
         encoding="utf-8",
     )
 
-    # 12. Print the run summary.
+    # 13. Print the run summary.
     print("\nCross-validation results:")
     print(results_df.to_string(index=False))
 
