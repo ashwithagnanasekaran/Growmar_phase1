@@ -252,10 +252,12 @@ def main():
         styles["ReportTitle"],
     ))
 
+     
+    
     repo_text = (
         "Name: Ashwitha | Track: AIML | Phase: 1<br/>"
         f"Repository: <link href='{REPO_URL}' color='#2563EB'>"
-        "GitHub project link</link>"
+        "Open GitHub repository</link>"
         " | Git tag: "
         f"<link href='{TAG_URL}' color='#2563EB'>phase-1</link>"
     )
