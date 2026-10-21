@@ -1,0 +1,4 @@
+model,cv_roc_auc,benchmark_roc_auc,difference,cv_pr_auc,benchmark_pr_auc
+Dummy (always stays),0.5,0.5,0.0,0.1459967465449127,0.146
+Logistic Regression,0.7067644438824153,0.713,-0.00623555611758464,0.3176211248345275,0.332
+Decision Tree (depth 4),0.6246904851447683,0.65,-0.025309514855231696,0.2259395419878943,0.256

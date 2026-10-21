@@ -6,6 +6,7 @@
 - Target: `left_within_12m`
 - Cross-validation: stratified five-fold CV on training data
 - Preprocessing is fitted independently within each CV fold.
+- Out-of-fold probabilities generated with `cross_val_predict`.
 
 ## Cross-validation results
 
@@ -15,12 +16,28 @@
 | Logistic Regression     |         0.7068 |        0.0206 |        0.3176 |       0.0525 |           0.2593 |          0.0275 |        0.6061 |       0.0521 |    0.3629 |   0.0350 |
 | Decision Tree (depth 4) |         0.6247 |        0.0429 |        0.2259 |       0.0244 |           0.2248 |          0.0370 |        0.4846 |       0.1359 |    0.3017 |   0.0478 |
 
+## Comparison with the workbook benchmark
+
+| model                   |   cv_roc_auc |   benchmark_roc_auc |   difference |   cv_pr_auc |   benchmark_pr_auc |
+|:------------------------|-------------:|--------------------:|-------------:|------------:|-------------------:|
+| Dummy (always stays)    |       0.5000 |              0.5000 |       0.0000 |      0.1460 |             0.1460 |
+| Logistic Regression     |       0.7068 |              0.7130 |      -0.0062 |      0.3176 |             0.3320 |
+| Decision Tree (depth 4) |       0.6247 |              0.6500 |      -0.0253 |      0.2259 |             0.2560 |
+
+## Five-sentence interpretation
+
+The DummyClassifier achieved ROC-AUC 0.5000; the reference sheet reports majority-class accuracy of 85.4%, but the model catches no employees who leave.
+Logistic Regression achieved mean cross-validation ROC-AUC 0.7068, compared with the workbook reference of 0.713.
+The depth-4 Decision Tree achieved mean cross-validation ROC-AUC 0.6247, compared with the workbook reference of 0.650.
+The differences may reflect data splits, preprocessing, or evaluation details; identical folds and setups have not been confirmed.
+Logistic Regression's held-out test ROC-AUC was 0.6708, below its cross-validation mean, so further validation is needed before real-world HR use.
+
 ## Final held-out test evaluation
 
 - Selected model: **Logistic Regression**.
 - Selection criterion: highest mean cross-validated PR-AUC among the two supervised models.
 - Selected threshold: **0.4922**.
-- Threshold selection: out-of-fold training predictions.
+- Threshold selection: cross_val_predict out-of-fold training probabilities.
 - Out-of-fold training precision: 0.2605.
 - Out-of-fold training recall: 0.6201.
 - Test ROC-AUC: 0.6708.

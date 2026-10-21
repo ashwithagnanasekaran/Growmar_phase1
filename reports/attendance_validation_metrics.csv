@@ -1,0 +1,3 @@
+method,labelled_anomalies,caught,missed,catch_rate,precision,false_alarm_rate
+Isolation Forest only,150,88,62,0.5866666666666667,,
+Isolation Forest + rules,150,111,39,0.74,,
