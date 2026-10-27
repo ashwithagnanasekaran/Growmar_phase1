@@ -1,0 +1,40 @@
+﻿# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Generated backups and temporary files
+*.backup-*
+*.bak
+*.tmp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# All backup files, regardless of naming convention
+*.backup
+*.backup-*
+*.bak
+*.tmp
+
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Do not publish data or generated artifacts until approved
+/data/
+/models_store/
+/reports/
