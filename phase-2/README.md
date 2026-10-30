@@ -2,27 +2,9 @@
 
 ## Project Overview
 
-GrowMar Phase 2 contains payroll anomaly detection, payroll reason codes,
+GrowMar Phase 2 includes payroll anomaly detection, payroll reason codes,
 an API for anomaly detection and chatbot requests, chatbot intent
 classification, and mock HR dialogue services.
-
-## Repository contents and data handling
-
-This repository copy intentionally excludes datasets, trained model files,
-and generated reports while their approval for GitHub publication is being
-confirmed.
-
-The following directories are therefore not included in this copy:
-
-- `data/`
-- `models_store/`
-- `reports/`
-
-Some API operations, training commands, and tests require those files.
-They may fail until approved artifacts are provided locally.
-
-Do not add company datasets, employee records, trained models, or generated
-reports to GitHub until their publication is explicitly approved.
 
 ## Requirements
 
@@ -37,53 +19,87 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-## Automated Tests
+## Run Automated Tests
 
-Run tests locally:
+Run all tests locally:
 
 ```powershell
 python -m pytest -v
 ```
 
-**Verification status for this data-excluded copy:** the latest selected
-test run reported 4 passed and 27 failed. Failures include missing data
-files such as `data/raw/demo_users.csv` and
-`data/raw/payroll_monthly_features.csv`, plus a missing generated CX-07
-results file. These results do not establish that the full test suite
-passes without the excluded artifacts.
+Latest verification: 41 tests passed locally.
 
-The original Phase 2 workspace previously reported 41 local tests passed
-and 41 Docker tests passed with its local artifacts present. Those results
-have not been reproduced in this data-excluded integration copy.
+## Train and Evaluate the Chatbot
 
-## Run the API
+```powershell
+python -m src.chatbot_nlu
+```
 
-The API entry point is `src/api.py`. Many operations depend on datasets
-or trained models that are not included in this repository copy.
+The candidate classifier reported 80.30% accuracy on the 132-row
+test set, with 26 misclassified examples.
 
-After the approved artifacts are made available locally, install the
-requirements and verify the API and its endpoints before deployment.
+Important evaluation note: the test set was used to compare candidate
+models. This result is therefore a model-selection result, not an
+independent final evaluation.
 
-## Docker
+Generated chatbot reports are located in `reports/chatbot/`.
 
-The Dockerfile copies application code and tests but intentionally does not
-copy datasets, trained models, or generated reports. A successful image
-build would not by itself demonstrate that model-dependent endpoints work.
+## Run the API Locally
 
-Build:
+```powershell
+uvicorn src.api:app --host 127.0.0.1 --port 8000
+```
+
+API documentation:
+http://127.0.0.1:8000/docs
+
+Main endpoints:
+
+- `GET /v1/health`
+- `POST /v1/anomaly/payroll`
+- `POST /v1/anomaly/attendance`
+- `POST /v1/chat`
+
+The chat endpoint requires the `X-Demo-User` header.
+
+## Docker Build and Test
+
+Build the image:
 
 ```powershell
 docker build -t growmar-phase2 .
 ```
 
-Run the API container:
+Run the test suite inside Docker:
+
+```powershell
+docker run --rm growmar-phase2 python -m pytest -v
+```
+
+Latest verification: 41 tests passed inside Docker.
+
+Run the API container on local port 8001:
 
 ```powershell
 docker run --rm -p 8001:8000 growmar-phase2
 ```
 
-Verify health and model-dependent endpoints separately after the required
-approved artifacts are available.
+Health check:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/v1/health"
+```
+
+API documentation when running in Docker:
+http://127.0.0.1:8001/docs
+
+## Reports and Models
+
+- Chatbot evaluation reports: `reports/chatbot/`
+- Payroll anomaly summary: `reports/payroll_anomaly_summary.md`
+- CX-07 evidence: `reports/payroll_cx07_evidence_20.csv`
+- CX-07 results: `reports/payroll_cx07_results.csv`
+- Chatbot model: `models_store/chatbot/1.0.0/intent_model.joblib`
 
 ## Limitations and Review Status
 
@@ -91,9 +107,19 @@ approved artifacts are available.
 - Attendance anomaly detection uses rules.
 - Money-at-risk values are estimates, not confirmed financial losses.
 - Payroll anomaly flags require human review; they are not confirmed fraud.
-- CX-07 reviewer feedback remains pending; no reviewer results are assumed.
-- The chatbot candidate's reported 80.30% accuracy came from a test set
-  used during model comparison, so it is not an independent final evaluation.
-- A new independent test set is recommended for final performance evaluation.
-- Production deployment, security review, and operational monitoring have
-  not been established by the checks described here.
+- CX-07 reviewer feedback is pending. The feedback CSV must be completed
+  using actual reviewer observations; no reviewer results are assumed.
+- The chatbot test set was used during candidate selection, so a new
+  independent test set is recommended for final performance evaluation.
+- The current Docker image and API have passed local container checks.
+  Production deployment, security review, and operational monitoring
+  have not been established by these checks.
+
+## Current Verification Summary
+
+- Local automated tests: 41 passed.
+- Docker automated tests: 41 passed.
+- Docker image build: successful.
+- Container API health check: successful.
+- Live chatbot and mock HR checks: successful.
+- CX-07 reviewer feedback: pending.

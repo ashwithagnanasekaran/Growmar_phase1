@@ -39,7 +39,7 @@ def test_output_contains_all_payroll_records():
 def test_flagged_count_matches_cx06():
     results = load_results()
 
-    assert (results["flagged"] == "Y").sum() == 219
+    assert (results["flagged"] == "Y").sum() == 262
     assert set(results["flagged"].unique()).issubset({"Y", "N"})
 
 
@@ -49,7 +49,7 @@ def test_flagged_records_have_explanations():
 
     assert flagged["reason_code"].notna().all()
     assert flagged["reason_text"].str.strip().ne("").all()
-    assert flagged["model_version"].eq("iforest-payroll-1.0.0").all()
+    assert flagged["model_version"].eq("iforest-payroll-1.1.0").all()
 
 
 def test_money_at_risk_is_not_negative():
@@ -80,4 +80,5 @@ def test_flagged_records_are_ranked_by_money_at_risk():
         if amounts.isna().any():
             first_missing = amounts.isna().to_numpy().argmax()
             assert amounts.iloc[first_missing:].isna().all()
+
 

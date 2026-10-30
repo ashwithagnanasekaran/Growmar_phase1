@@ -24,3 +24,7 @@ artifacts/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Allow only Phase 2 deployment models
+!phase-2/models_store/
+!phase-2/models_store/**

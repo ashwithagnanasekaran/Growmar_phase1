@@ -61,7 +61,20 @@ def test_payroll_rules_flag_expected_rows():
     df = load_payroll()
     rule_flags, reasons = apply_rules(df)
 
-    assert int(rule_flags.sum()) == 43
+    assert int(rule_flags.sum()) == 100
+
+    expected_signals = {
+        "WRONG_DECIMAL_SUSPECTED": 15,
+        "OVERTIME_SPIKE": 13,
+        "SUDDEN_PF_DROP": 14,
+        "SUDDEN_FIXED_SALARY_INCREASE": 15,
+    }
+
+    for code, expected_count in expected_signals.items():
+        actual_count = sum(code in str(reason) for reason in reasons)
+        assert actual_count == expected_count, (
+            f"{code}: expected {expected_count}, got {actual_count}"
+        )
     assert len(reasons) == len(df)
 
 
@@ -75,3 +88,4 @@ def test_detector_outputs_are_consistent():
     )
     assert results["anomaly_score"].notna().all()
     assert results["reason_codes"].notna().all()
+

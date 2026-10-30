@@ -41,7 +41,7 @@ def test_payroll_valid_request():
     body = response.json()
     assert body["record_id"] == "PI-TEST-001"
     assert isinstance(body["flagged"], bool)
-    assert body["model_version"] == "iforest-payroll-1.0.0"
+    assert body["model_version"] == "iforest-payroll-1.1.0"
 
 
 def test_payroll_missing_required_field_returns_422():
@@ -177,4 +177,5 @@ def test_chat_rejects_missing_authentication():
         )
 
     assert response.status_code == 401
+
 

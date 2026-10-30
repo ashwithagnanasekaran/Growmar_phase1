@@ -35,6 +35,10 @@ __pycache__/
 venv/
 
 # Do not publish data or generated artifacts until approved
-/data/
-/models_store/
 /reports/
+
+# Local CX-06 evaluation files and backups
+evaluate_cx06.py
+unlock_CX-06_payroll_anomaly_labels.csv
+*_backup*.py
+

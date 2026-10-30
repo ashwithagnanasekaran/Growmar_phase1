@@ -6,14 +6,14 @@ import pandas as pd
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.payroll_detector import build_features
+from src.payroll_detector import build_features, apply_rules
 from src.chatbot_service import answer_message
 from src.conversation_manager import ConversationManager
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_PATH = (
-    ROOT / "models_store" / "payroll" / "1.0.0"
+    ROOT / "models_store" / "payroll" / "1.1.0"
     / "payroll_detector.joblib"
 )
 
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="GrowMar Workforce Anomaly API",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -108,7 +108,7 @@ def health():
     return {
         "status": "ok",
         "payroll_model_file_exists": MODEL_PATH.exists(),
-        "payroll_model_version": "1.0.0",
+        "payroll_model_version": "1.1.0",
     }
 
 
@@ -120,19 +120,21 @@ def payroll_anomaly(payload: PayrollInput):
         )
 
     record = pd.DataFrame([payload.model_dump()])
-    features = build_features(record)
 
+    # Supply explicit neutral defaults for fields absent from the API schema.
+    record["run_id"] = "API_SINGLE_RECORD"
+    record["overtime_eligible"] = "N"
+    record["pf_employee"] = 0.0
+
+    features = build_features(record)
     model = MODEL_BUNDLE["model"]
+
     prediction = int(model.predict(features)[0])
     score = float(-model.score_samples(features)[0])
 
-    reasons = []
-    if payload.net_pay < 0:
-        reasons.append("NEGATIVE_NET_PAY")
-    if payload.total_deductions > payload.gross_pay:
-        reasons.append("DEDUCTIONS_EXCEED_GROSS")
-    if payload.gross_pay == 0 and payload.monthly_fixed_gross > 0:
-        reasons.append("ZERO_GROSS_WITH_FIXED_PAY")
+    rule_flags, rule_reasons = apply_rules(record)
+    reasons = rule_reasons[0]
+
     if prediction == -1:
         reasons.append("ISOLATION_FOREST_ANOMALY")
 
@@ -140,13 +142,12 @@ def payroll_anomaly(payload: PayrollInput):
         "record_id": payload.payroll_item_id,
         "employee_id": payload.employee_id,
         "period": payload.month,
-        "flagged": bool(prediction == -1 or reasons),
+        "flagged": bool(bool(rule_flags.iloc[0]) or prediction == -1),
         "model_flag": bool(prediction == -1),
         "anomaly_score": score,
         "reason_codes": reasons or ["NO_RULE_TRIGGER"],
-        "model_version": "iforest-payroll-1.0.0",
+        "model_version": "iforest-payroll-1.1.0",
     }
-
 
 @app.post("/v1/anomaly/attendance")
 def attendance_anomaly(payload: AttendanceInput):
@@ -210,3 +211,7 @@ def chat(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("src.api:app", host="127.0.0.1", port=8000)
+
+
+
+

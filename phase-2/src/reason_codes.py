@@ -10,7 +10,7 @@ PAYROLL_PATH = ROOT / "data" / "raw" / "payroll_monthly_features.csv"
 DETECTOR_RESULTS = ROOT / "reports" / "payroll_anomaly_results.csv"
 OUTPUT_PATH = ROOT / "reports" / "payroll_cx07_results.csv"
 
-MODEL_VERSION = "iforest-payroll-1.0.0"
+MODEL_VERSION = "iforest-payroll-1.1.0"
 
 
 def build_reason(row):
@@ -22,45 +22,61 @@ def build_reason(row):
 
     candidates = []
 
-    if "NEGATIVE_NET_PAY" in codes:
-        candidates.append((
+    reason_definitions = {
+        "NEGATIVE_NET_PAY": (
             "NEGATIVE_NET_PAY",
             "Net pay is negative and requires payroll review.",
             abs(net),
-        ))
-
-    if "DEDUCTIONS_EXCEED_GROSS" in codes:
-        candidates.append((
+        ),
+        "DEDUCTIONS_EXCEED_GROSS": (
             "DEDUCTIONS_EXCEED_GROSS",
             "Total deductions exceed gross pay.",
             max(0.0, deductions - gross),
-        ))
-
-    if "ZERO_GROSS_WITH_FIXED_PAY" in codes:
-        candidates.append((
+        ),
+        "ZERO_GROSS_WITH_FIXED_PAY": (
             "ZERO_GROSS_WITH_FIXED_PAY",
             "Gross pay is zero despite positive fixed gross pay.",
             fixed,
-        ))
-
-    if "DUPLICATE_PAYROLL_GROUP" in codes:
-        candidates.append((
+        ),
+        "DUPLICATE_PAYROLL_GROUP": (
             "DUPLICATE_PAYROLL_GROUP",
             "Multiple records share employee, month, and run; verify whether they are duplicate payroll entries.",
             np.nan,
-        ))
-
-    if "ISOLATION_FOREST_ANOMALY" in codes:
-        candidates.append((
+        ),
+        "ISOLATION_FOREST_ANOMALY": (
             "STATISTICAL_PAYROLL_ANOMALY",
             "The payroll record has an unusual feature pattern and requires review.",
             np.nan,
-        ))
+        ),
+        "WRONG_DECIMAL_SUSPECTED": (
+            "WRONG_DECIMAL_SUSPECTED",
+            "Gross pay is unusually high relative to fixed gross pay. Check for a possible decimal or amount-entry error.",
+            np.nan,
+        ),
+        "OVERTIME_SPIKE": (
+            "OVERTIME_SPIKE",
+            "Overtime pay is unusually high relative to fixed gross pay. Verify overtime hours and approval records.",
+            np.nan,
+        ),
+        "SUDDEN_PF_DROP": (
+            "SUDDEN_PF_DROP",
+            "Employee PF deduction has dropped to zero after a previous positive deduction. Verify eligibility and payroll changes.",
+            np.nan,
+        ),
+        "SUDDEN_FIXED_SALARY_INCREASE": (
+            "SUDDEN_FIXED_SALARY_INCREASE",
+            "Fixed gross salary has increased sharply compared with the previous payroll record. Verify salary revision and approval.",
+            np.nan,
+        ),
+    }
+
+    for code, definition in reason_definitions.items():
+        if code in codes:
+            candidates.append(definition)
 
     if not candidates:
         return "NO_ANOMALY", "No anomaly reason was recorded.", np.nan, ""
 
-    # Prefer the largest explicitly quantifiable review amount.
     quantifiable = [item for item in candidates if pd.notna(item[2])]
     selected = (
         max(quantifiable, key=lambda item: item[2])
@@ -80,10 +96,15 @@ def main():
     detector = pd.read_csv(DETECTOR_RESULTS)
 
     required = {
-        "payroll_item_id", "employee_id", "month",
-        "gross_pay", "monthly_fixed_gross",
-        "total_deductions", "net_pay",
+        "payroll_item_id",
+        "employee_id",
+        "month",
+        "gross_pay",
+        "monthly_fixed_gross",
+        "total_deductions",
+        "net_pay",
     }
+
     missing = required - set(payroll.columns)
     if missing:
         raise ValueError(f"Payroll columns missing: {sorted(missing)}")
@@ -92,9 +113,7 @@ def main():
         raise ValueError("Payroll item IDs are not unique.")
 
     results = detector.merge(
-        payroll[[
-            "payroll_item_id", "monthly_fixed_gross"
-        ]],
+        payroll[["payroll_item_id", "monthly_fixed_gross"]],
         on="payroll_item_id",
         how="left",
         validate="one_to_one",
@@ -117,27 +136,12 @@ def main():
         "anomaly_score": results["anomaly_score"],
         "flagged": np.where(results["anomaly_flag"], "Y", "N"),
         "reason_code": results["reason_details"].map(lambda x: x[0]),
-        "reason_text": results["reason_details"].map(
-            lambda x: (
-                x[1]
-                if not [
-                    reason.strip()
-                    for reason in x[3].split(x[1])
-                    if reason.strip()
-                ]
-                else x[1] + " Other review signals: " + " ".join(
-                    reason.strip()
-                    for reason in x[3].split(x[1])
-                    if reason.strip()
-                )
-            )
-        ),
+        "reason_text": results["reason_details"].map(lambda x: x[3]),
         "money_at_risk": results["reason_details"].map(lambda x: x[2]),
         "model_version": MODEL_VERSION,
         "scored_at": datetime.now(timezone.utc).isoformat(),
     })
 
-    # Rank flagged records first, with highest quantified risk at the top.
     output["_flagged_sort"] = (output["flagged"] == "Y").astype(int)
     output = output.sort_values(
         by=["_flagged_sort", "money_at_risk"],
@@ -152,11 +156,14 @@ def main():
     quantified = flagged["money_at_risk"].dropna()
 
     print("CX-07 reason-code generation completed.")
+    print("Model version:", MODEL_VERSION)
     print("Total records:", len(output))
     print("Flagged records:", len(flagged))
     print("Records with quantified review estimates:", len(quantified))
-    print("Money-at-risk estimate total (quantified records only):",
-          round(float(quantified.sum()), 2))
+    print(
+        "Money-at-risk estimate total (quantified records only):",
+        round(float(quantified.sum()), 2),
+    )
     print("This total is not confirmed loss and may include overlapping issues.")
     print("Output:", OUTPUT_PATH)
     print("Output columns:", list(output.columns))
