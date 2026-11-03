@@ -1,0 +1,25 @@
+﻿# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Git
+.git/
+
+# Company data and protected attributes
+data/
+
+# Trained models
+models_store/
+
+# Employee-level reports and evidence
+reports/
+evidence/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup*
+*.zip
