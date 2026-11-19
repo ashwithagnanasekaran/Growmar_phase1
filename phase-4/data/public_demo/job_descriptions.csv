@@ -1,0 +1,11 @@
+job_id,job_title,min_experience_years,required_skills,nice_to_have_skills,description_text
+J01,Software Engineer,2,"python, java, sql, git","docker, api, testing","Fictional public demo role for Software Engineer. Skills: python, java, sql, git. Additional skills: docker, api, testing."
+J02,Senior Software Engineer,5,"python, java, architecture, sql","cloud, docker, leadership","Fictional public demo role for Senior Software Engineer. Skills: python, java, architecture, sql. Additional skills: cloud, docker, leadership."
+J03,Data Analyst,1,"sql, excel, python, statistics","power bi, tableau","Fictional public demo role for Data Analyst. Skills: sql, excel, python, statistics. Additional skills: power bi, tableau."
+J04,ML Engineer,2,"python, machine learning, pandas, scikit-learn","xgboost, tensorflow, mlops","Fictional public demo role for ML Engineer. Skills: python, machine learning, pandas, scikit-learn. Additional skills: xgboost, tensorflow, mlops."
+J05,Product Manager,3,"product strategy, analytics, communication","agile, roadmaps","Fictional public demo role for Product Manager. Skills: product strategy, analytics, communication. Additional skills: agile, roadmaps."
+J06,Customer Support Executive,1,"communication, problem solving, customer service","crm, excel","Fictional public demo role for Customer Support Executive. Skills: communication, problem solving, customer service. Additional skills: crm, excel."
+J07,HR Executive,1,"recruitment, communication, hr operations","excel, payroll","Fictional public demo role for HR Executive. Skills: recruitment, communication, hr operations. Additional skills: excel, payroll."
+J08,Accountant,2,"accounting, excel, taxation, reconciliation","tally, audit","Fictional public demo role for Accountant. Skills: accounting, excel, taxation, reconciliation. Additional skills: tally, audit."
+J09,Account Executive,2,"sales, negotiation, communication","crm, lead generation","Fictional public demo role for Account Executive. Skills: sales, negotiation, communication. Additional skills: crm, lead generation."
+J10,Digital Marketing Executive,1,"seo, social media, content marketing","analytics, google ads","Fictional public demo role for Digital Marketing Executive. Skills: seo, social media, content marketing. Additional skills: analytics, google ads."

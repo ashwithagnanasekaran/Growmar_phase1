@@ -1,0 +1,1 @@
+All records in this directory are fictional and generated programmatically with NumPy random seed 42. No real employee records, original workbook rows, or protected attributes were used. Targets are simulated for demonstration and are not empirical employment outcomes.

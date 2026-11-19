@@ -1,0 +1,21 @@
+resume_id,total_experience_years,current_title,highest_education,skills,certifications,resume_text
+DEMO-C001,3.0,Software Engineer,Bachelor,"python, java, sql, git, docker",,Backend API development and software testing.
+DEMO-C002,2.0,Software Developer,Bachelor,"python, java, sql, testing",,Application development and database integration.
+DEMO-C003,7.0,Senior Developer,Master,"python, java, architecture, sql, cloud",,System architecture and technical leadership.
+DEMO-C004,2.0,Data Analyst,Bachelor,"sql, excel, python, statistics, power bi",,"Reporting, dashboards and data analysis."
+DEMO-C005,3.0,Business Analyst,Bachelor,"sql, excel, statistics, tableau",,Business reporting and analytical insights.
+DEMO-C006,3.0,ML Engineer,Bachelor,"python, machine learning, pandas, scikit-learn, xgboost",,Machine learning model development and evaluation.
+DEMO-C007,2.0,AI Developer,Master,"python, machine learning, tensorflow, pandas",,AI model experimentation and deployment.
+DEMO-C008,4.0,Product Associate,Master,"product strategy, analytics, communication, agile",,Product planning and stakeholder coordination.
+DEMO-C009,2.0,Project Coordinator,Bachelor,"communication, analytics, roadmaps, agile",,Project tracking and team coordination.
+DEMO-C010,2.0,Support Executive,Bachelor,"communication, problem solving, customer service, crm",,Customer issue resolution and support operations.
+DEMO-C011,1.0,Service Associate,Bachelor,"communication, customer service, excel",,Customer assistance and service documentation.
+DEMO-C012,3.0,HR Executive,Bachelor,"recruitment, communication, hr operations, excel",,Recruitment coordination and HR administration.
+DEMO-C013,1.0,HR Associate,Bachelor,"recruitment, communication, payroll",,Interview scheduling and employee support.
+DEMO-C014,4.0,Accountant,Bachelor,"accounting, excel, taxation, reconciliation, audit",,Financial accounting and monthly reconciliation.
+DEMO-C015,2.0,Finance Associate,Bachelor,"accounting, excel, taxation, tally",,Ledger maintenance and tax documentation.
+DEMO-C016,3.0,Sales Executive,Bachelor,"sales, negotiation, communication, crm",,Sales pipeline and client relationship management.
+DEMO-C017,2.0,Business Development Associate,Bachelor,"sales, communication, lead generation",,Lead qualification and business development.
+DEMO-C018,2.0,Digital Marketing Executive,Bachelor,"seo, social media, content marketing, google ads",,Campaign management and digital content.
+DEMO-C019,1.0,Marketing Associate,Bachelor,"seo, social media, analytics",,Social media reporting and marketing campaigns.
+DEMO-C020,0.5,Graduate Trainee,Bachelor,"python, excel, communication, sql",,Entry-level project and analytical support.
