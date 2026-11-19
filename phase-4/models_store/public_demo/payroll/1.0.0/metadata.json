@@ -1,0 +1,16 @@
+{
+  "version": "public-demo-1.0.0",
+  "feature_columns": [
+    "gross_fixed_ratio",
+    "deduction_gross_ratio",
+    "net_gross_ratio",
+    "overtime_fixed_ratio",
+    "variable_fixed_ratio",
+    "lop_days",
+    "overtime_hours_paid"
+  ],
+  "training_rows": 1440,
+  "contamination": 0.025,
+  "data_provenance": "Synthetic fictional demonstration data only",
+  "performance_claim": "Unsupervised demo; not validated on real payroll"
+}

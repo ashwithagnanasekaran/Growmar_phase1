@@ -1,0 +1,25 @@
+{
+  "version": "public-demo-1.0.0",
+  "model": "IsolationForest",
+  "random_state": 42,
+  "n_estimators": 300,
+  "contamination": 0.03,
+  "feature_columns": [
+    "scheduled_days",
+    "present_days",
+    "wfh_days",
+    "half_days_unpaid",
+    "paid_leave_days",
+    "unpaid_absence_days",
+    "longest_unpaid_streak_days",
+    "late_arrivals",
+    "avg_hours_worked",
+    "overtime_hours",
+    "attendance_rate"
+  ],
+  "training_rows": 3000,
+  "threshold": 0.0,
+  "score_definition": "-model.decision_function(X)",
+  "data_provenance": "Synthetic fictional demonstration data only",
+  "performance_claim": "No real-world performance claim"
+}

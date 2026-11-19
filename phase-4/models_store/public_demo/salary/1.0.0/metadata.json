@@ -1,0 +1,25 @@
+{
+  "version": "public-demo-1.0.0",
+  "features": [
+    "hire_year",
+    "job_level",
+    "prior_experience_years",
+    "career_gap_months",
+    "skills_count",
+    "market_index",
+    "department_id",
+    "role_id",
+    "work_location",
+    "highest_education"
+  ],
+  "target": "offered_annual_fixed",
+  "training_rows": 1200,
+  "test_rows": 300,
+  "random_state": 42,
+  "synthetic_demo_metrics": {
+    "MAE": 63051.506263543095,
+    "R2": 0.9516344295808229
+  },
+  "data_provenance": "Synthetic fictional demonstration data only",
+  "performance_claim": "Not validated on real salary data"
+}
