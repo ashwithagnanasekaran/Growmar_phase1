@@ -96,6 +96,7 @@ tabs = st.tabs([
     "Salary",
     "Resume Screening",
     "Workforce Forecast",
+    "HR Assistant",
 ])
 
 # ---------------------------------------------------------
@@ -406,6 +407,60 @@ with tabs[5]:
                 st.info("No forecast rows returned for these filters.")
         except requests.RequestException as e:
             show_api_error(e)
+
+
+# GROWMAR_HR_ASSISTANT_UI
+# ---------------------------------------------------------
+# 7. HR ASSISTANT
+# ---------------------------------------------------------
+with tabs[6]:
+    st.subheader("GrowMar HR Assistant")
+    st.write("Ask general HR questions using the public FAQ assistant.")
+    st.info(
+        "AI-generated responses are for human review. "
+        "This public demo cannot access personal employee records. "
+        "Do not enter confidential information."
+    )
+
+    if "hr_chat_session_id" not in st.session_state:
+        st.session_state.hr_chat_session_id = str(uuid.uuid4())
+
+    if "hr_chat_history" not in st.session_state:
+        st.session_state.hr_chat_history = []
+
+    for item in st.session_state.hr_chat_history:
+        with st.chat_message(item["role"]):
+            st.write(item["content"])
+
+    prompt = st.chat_input("Ask a general HR question...")
+
+    if prompt:
+        st.session_state.hr_chat_history.append(
+            {"role": "user", "content": prompt}
+        )
+        try:
+            result = api_post(
+                "/v1/chatbot/message",
+                {
+                    "session_id": st.session_state.hr_chat_session_id,
+                    "message": prompt,
+                },
+            )
+            answer = result.get("answer") or "The assistant returned no answer."
+            st.session_state.hr_chat_history.append(
+                {"role": "assistant", "content": answer}
+            )
+            st.rerun()
+        except requests.RequestException as e:
+            st.session_state.hr_chat_history.append(
+                {"role": "assistant", "content": f"Request failed: {e}"}
+            )
+            st.rerun()
+
+    if st.button("Clear conversation", key="clear_hr_chat"):
+        st.session_state.hr_chat_history = []
+        st.session_state.hr_chat_session_id = str(uuid.uuid4())
+        st.rerun()
 
 st.divider()
 st.caption(
