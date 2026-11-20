@@ -97,6 +97,7 @@ tabs = st.tabs([
     "Resume Screening",
     "Workforce Forecast",
     "HR Assistant",
+    "Monitoring",
 ])
 
 # ---------------------------------------------------------
@@ -461,6 +462,58 @@ with tabs[6]:
         st.session_state.hr_chat_history = []
         st.session_state.hr_chat_session_id = str(uuid.uuid4())
         st.rerun()
+
+
+
+# ---------------------------------------------------------
+# 8. RESPONSIBLE AI MONITORING
+# ---------------------------------------------------------
+with tabs[7]:
+    st.subheader("Responsible AI Monitoring")
+    st.info(
+        "Synthetic public-demo monitoring only. "
+        "The comparison uses two deterministic portions of the training dataset, "
+        "not a time-based 2026 production population. "
+        "AI-generated findings require human review."
+    )
+
+    if st.button("Load monitoring report", key="load_monitoring"):
+        try:
+            result = api_get("/v1/monitoring")
+
+            psi_frame = pd.DataFrame(result.get("psi", []))
+            quality_frame = pd.DataFrame(result.get("data_quality", []))
+
+            if not psi_frame.empty:
+                alert_count = int((psi_frame["verdict"] == "ALERT").sum())
+                watch_count = int((psi_frame["verdict"] == "WATCH").sum())
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Features monitored", len(psi_frame))
+                col2.metric("PSI alerts", alert_count)
+                col3.metric("PSI watch", watch_count)
+
+                st.markdown("**Population Stability Index**")
+                st.dataframe(
+                    psi_frame, use_container_width=True, hide_index=True
+                )
+                st.bar_chart(psi_frame.set_index("feature")["psi"])
+            else:
+                st.warning("No PSI results were returned.")
+
+            if not quality_frame.empty:
+                st.markdown("**Data quality checks**")
+                st.dataframe(
+                    quality_frame, use_container_width=True, hide_index=True
+                )
+
+            st.caption(result.get("method", ""))
+            st.write(result.get("interpretation", ""))
+            st.warning(result.get("fairness_note", ""))
+
+        except requests.RequestException as error:
+            show_api_error(error)
+
 
 st.divider()
 st.caption(

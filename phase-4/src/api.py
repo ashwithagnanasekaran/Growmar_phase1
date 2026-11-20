@@ -9,6 +9,7 @@ import os
 import hmac
 import joblib
 import pandas as pd
+import numpy as np
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -269,6 +270,181 @@ def health_check():
         "api_version": "1.0.0",
         "services": service_status,
     }
+
+
+
+@app.get("/v1/monitoring")
+def get_monitoring():
+    """Return drift and data-quality diagnostics for synthetic demo data."""
+    if not PUBLIC_DEMO:
+        raise HTTPException(
+            status_code=503,
+            detail="This monitoring demonstration is available in public demo mode only.",
+        )
+
+    data_file = (
+        BASE_DIR / "data" / "public_demo" /
+        "synthetic_training" / "attrition_training.csv"
+    )
+    if not data_file.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Synthetic monitoring dataset is unavailable.",
+        )
+
+    frame = pd.read_csv(data_file)
+
+    features = [
+        "tenure_months",
+        "comp_ratio",
+        "last_engagement_score",
+        "attendance_rate_3m",
+        "late_arrivals_3m",
+        "avg_overtime_hours_per_month_3m",
+        "months_since_last_raise",
+        "training_hours_12m",
+    ]
+
+    missing = [column for column in features if column not in frame.columns]
+    if missing:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Monitoring features missing: {missing}",
+        )
+
+    midpoint = len(frame) // 2
+    if midpoint < 2 or len(frame) - midpoint < 2:
+        raise HTTPException(
+            status_code=500,
+            detail="Not enough synthetic rows for a two-cohort demonstration.",
+        )
+
+    baseline = frame.iloc[:midpoint]
+    comparison = frame.iloc[midpoint:]
+
+    psi_results = []
+
+    for feature in features:
+        expected = pd.to_numeric(baseline[feature], errors="coerce")
+        actual = pd.to_numeric(comparison[feature], errors="coerce")
+        valid = expected.dropna()
+
+        if valid.empty:
+            continue
+
+        edges = np.unique(
+            valid.quantile(np.linspace(0, 1, 11)).to_numpy()
+        )
+
+        if len(edges) == 1:
+            edges = np.array([-np.inf, edges[0], np.inf])
+        else:
+            edges[0] = -np.inf
+            edges[-1] = np.inf
+
+        def proportions(series):
+            values = pd.cut(
+                series.dropna(),
+                bins=edges,
+                include_lowest=True,
+                duplicates="drop",
+            )
+            counts = values.value_counts()
+            counts.index = counts.index.astype(str)
+
+            missing_count = int(series.isna().sum())
+            counts["MISSING"] = missing_count
+
+            total = len(series)
+            return counts.reindex(
+                [str(interval) for interval in values.cat.categories]
+                + ["MISSING"],
+                fill_value=0,
+            ) / max(total, 1)
+
+        expected_pct = proportions(expected)
+        actual_pct = proportions(actual)
+        categories = expected_pct.index.union(actual_pct.index)
+
+        expected_pct = expected_pct.reindex(categories, fill_value=0).clip(lower=1e-6)
+        actual_pct = actual_pct.reindex(categories, fill_value=0).clip(lower=1e-6)
+
+        score = float(
+            ((actual_pct - expected_pct) *
+             np.log(actual_pct / expected_pct)).sum()
+        )
+
+        verdict = (
+            "ALERT" if score > 0.25
+            else "WATCH" if score >= 0.10
+            else "OK"
+        )
+
+        psi_results.append({
+            "feature": feature,
+            "psi": round(score, 5),
+            "verdict": verdict,
+            "baseline_rows": len(baseline),
+            "comparison_rows": len(comparison),
+            "baseline_missing": int(expected.isna().sum()),
+            "comparison_missing": int(actual.isna().sum()),
+        })
+
+    attendance = pd.to_numeric(
+        frame["attendance_rate_3m"], errors="coerce"
+    )
+    raise_interval = pd.to_numeric(
+        frame["months_since_last_raise"], errors="coerce"
+    )
+
+    quality_checks = [
+        {
+            "check": "Attendance above 1.0",
+            "count": int((attendance > 1.0).sum()),
+            "total": len(frame),
+            "verdict": "ALERT" if (attendance > 1.0).any() else "OK",
+        },
+        {
+            "check": "Zero attendance",
+            "count": int((attendance == 0).sum()),
+            "total": len(frame),
+            "verdict": "REVIEW" if (attendance == 0).any() else "OK",
+        },
+        {
+            "check": "Attendance below 0.5",
+            "count": int((attendance < 0.5).sum()),
+            "total": len(frame),
+            "verdict": "REVIEW" if (attendance < 0.5).any() else "OK",
+        },
+        {
+            "check": "Raise interval exactly 5 months",
+            "count": int((raise_interval == 5).sum()),
+            "total": len(frame),
+            "verdict": "INFO",
+        },
+    ]
+
+    return {
+        "status": "success",
+        "data_scope": "synthetic_public_demo",
+        "method": "Deterministic first-half versus second-half cohort comparison",
+        "interpretation": (
+            "Demonstration only. These cohorts are not time-labelled and "
+            "do not represent measured real-world 2026 workforce drift."
+        ),
+        "thresholds": {
+            "OK": "PSI < 0.10",
+            "WATCH": "0.10 <= PSI <= 0.25",
+            "ALERT": "PSI > 0.25",
+        },
+        "psi": psi_results,
+        "data_quality": quality_checks,
+        "fairness_note": (
+            "Gender and age protected attributes are not present in this "
+            "public synthetic dataset. Demographic fairness results are not calculated."
+        ),
+    }
+
 
 @app.get("/v1/forecast")
 def get_forecast(
