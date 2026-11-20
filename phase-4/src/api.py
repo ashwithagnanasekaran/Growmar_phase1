@@ -794,7 +794,7 @@ def chatbot_message(
                 "confidence": result.get("confidence"),
                 "answer": result.get("answer"),
                 "fallback": result.get("fallback", False),
-                "refused": False,
+                "refused": result.get("refused", False),
                 "used_context": False,
                 "human_review_required": True,
                 "notice": (

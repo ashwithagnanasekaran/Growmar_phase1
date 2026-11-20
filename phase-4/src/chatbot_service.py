@@ -81,6 +81,39 @@ def answer_public_faq(message):
             "fallback": False,
         }
 
+    # PUBLIC_DEMO_PRIVACY_GUARD
+    # Refuse requests for another employee's sensitive information.
+    sensitive_terms = (
+        "salary", "payslip", "pay slip", "bank details",
+        "bank account", "account number", "personal records",
+        "personal details",
+    )
+    employee_references = (
+        "employee ", "another employee", "other employee",
+        "someone else's", "somebody else's", "their salary",
+        "their payslip", "their bank",
+    )
+
+    asks_for_sensitive_data = any(
+        term in normalized for term in sensitive_terms
+    )
+    refers_to_another_person = any(
+        term in normalized for term in employee_references
+    )
+
+    if asks_for_sensitive_data and refers_to_another_person:
+        return {
+            "intent": "privacy_refusal",
+            "confidence": 1.0,
+            "answer": (
+                "I can't provide another employee's salary, payslip, "
+                "bank details, or personal records. Please use the "
+                "authorized HR or payroll process."
+            ),
+            "fallback": False,
+            "refused": True,
+        }
+
     bundle = load_resources()
     faq = bundle["faq"]
 
